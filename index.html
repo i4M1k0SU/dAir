@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ja">
+<head>
+    <meta charset="utf8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta property="og:title" content="グラフで見るD社の空気">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://example.com/dAir/">
+    <meta property="og:description" content="グラフで見るD社の空気">
+    <title>グラフで見るD社の空気</title>
+    <style>
+        canvas{
+            user-select: none;
+        }
+        
+        body {
+            transition: 0.3s ease-in-out;
+        }
+
+        .safe-body {
+            background-color: #caffca;
+        }
+
+        .warn-body {
+            background-color: #ffff99;
+        }
+
+        .danger-body {
+            background-color: lightpink;
+            animation: dangerAnimation 1.5s ease 5;
+        }
+
+        @keyframes dangerAnimation {
+            0% {
+                background-color: lightpink;
+            }
+
+            50% {
+                background-color: #bb1111;
+            }
+
+            100% {
+                background-color: lightpink;
+            }
+        }
+    </style>
+</head>
+<body class="safe-body">
+<h1>グラフで見るD社の空気</h1>
+<h2>参考資料</h2>
+<ul>
+    <li><a href="https://www.jaish.gr.jp/anzen/hor/hombun/hor1-2/hor1-2-36-2-0.htm">事務所衛生基準規則 第2章 事務室の環境管理（第2条－第12条）｜安全衛生情報センター</a></li>
+</ul>
+<h2>グラフ</h2>
+<canvas id="graph"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.3/Chart.bundle.min.js"></script>
+<script>
+    const temperatureLabel = '室温(℃)';
+    const co2Label = 'CO₂濃度(ppm)';
+    const config = {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                label: temperatureLabel,
+                backgroundColor: '#f00',
+                borderColor: '#f00',
+                data: [],
+                fill: false,
+                yAxisID: 'temperature'
+            }, {
+                label: co2Label,
+                fill: false,
+                backgroundColor: '#00f',
+                borderColor: '#00f',
+                data: [],
+                yAxisID: 'co2'
+            }]
+        },
+        options: {
+            responsive: true,
+            tooltips: {
+                mode: 'index',
+                intersect: false,
+            },
+            hover: {
+                mode: 'nearest',
+                intersect: true
+            },
+            scales: {
+                yAxes: [{
+                    id: 'temperature',
+                    type: 'linear',
+                    position: 'left',
+                    ticks: {
+                        max: 35,
+                        min: 15,
+                        stepSize: 5
+                    },
+                    scaleLabel: {
+                        display: true,
+                        labelString: temperatureLabel,
+                        fontSize: 16
+                    },
+                }, {
+                    id: 'co2',
+                    type: 'linear',
+                    position: 'right',
+                    // ticks: {
+                    //     max: 1500,
+                    //     min: 500,
+                    //     stepSize: 100
+                    // },
+                    scaleLabel: {
+                        display: true,
+                        labelString: co2Label,
+                        fontSize: 16
+                    },
+                }],
+            }
+        }
+    };
+
+    const fetchAirInfo = (seatId) => {
+        return fetch(`./getAirInfo.php?seat=${seatId}&range=half-day`)
+            .then((response) => {
+                if (response.ok) {
+                    return response.json();
+                }
+            })
+            .then((json) => {
+                const labels = [];
+                const temperature = [];
+                const co2 = [];
+                // APIのソートの都合でunshift
+                json.forEach((value) => {
+                    labels.unshift(value.datetime);
+                    temperature.unshift(value.temperature);
+                    co2.unshift(value.co2);
+                });
+                config.data.labels = labels;
+                config.data.datasets[0].data = temperature;
+                config.data.datasets[1].data = co2;
+
+                // CO2が1000ppmを超えたら違法空間
+                const latestCo2 = config.data.datasets[1].data.slice(-1)[0];
+                if (latestCo2 >= 1000) {
+                    changeMode('danger')
+                }
+                else if (latestCo2 >= 700) {
+                    changeMode('warn');
+                }
+                else {
+                    changeMode('safe');
+                }
+            });
+    };
+    
+    const changeMode = (mode) => {
+        const h1 = document.getElementsByTagName('h1')[0];
+        const body = document.getElementsByTagName('body')[0];
+        const originalTitle = 'グラフで見るD社の空気';
+        const ihouTitle = 'グラフで見る違法空間の空気';
+        switch (mode) {
+            case 'safe':
+                body.classList.remove('warn-body');
+                body.classList.remove('danger-body');
+                body.classList.add('safe-body');
+                h1.innerText = originalTitle;
+                break;
+            case 'warn':
+                body.classList.remove('safe-body');
+                body.classList.remove('danger-body');
+                body.classList.add('warn-body');
+                h1.innerText = originalTitle;
+                break;
+            case 'danger':
+                body.classList.remove('warn-body');
+                body.classList.remove('safe-body');
+                body.classList.add('danger-body');
+                h1.innerText = ihouTitle;
+                break;
+        }
+        document.title = h1.innerText;
+    };
+
+    window.onload = async() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const seatId = urlParams.get('seat') || 'F13_DR35';
+        await fetchAirInfo(seatId);
+        const context = document.getElementById('graph').getContext('2d');
+        const chart = new Chart(context, config);
+
+        setInterval(() => {
+            fetchAirInfo(seatId)
+                .then(() => {
+                    chart.update();
+                })
+        }, 60000);
+    };
+
+</script>
+</body>
+</html>
+

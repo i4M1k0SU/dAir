@@ -1,0 +1,15 @@
+{
+    "name": "i4m1k0su/d-air",
+    "description": "あつい",
+    "authors": [
+        {
+            "name": "i4M1k0SU",
+            "email": "i4m1k0su@i4m1k0.su",
+            "homepage": "https://i4m1k0.su"
+        }
+    ],
+    "require": {
+        "php": ">=7.2",
+        "ext-pdo": "*"
+    }
+}
